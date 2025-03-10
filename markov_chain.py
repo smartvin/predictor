@@ -3,6 +3,7 @@ import networkx as nx
 
 class MarkovChain:
     def __init__(self):
+        # Define initial transition probabilities
         self.transition_matrix = {
             ('initial', 'negotiation'): 0.4,
             ('negotiation', 'agreement'): 0.3,
@@ -11,13 +12,9 @@ class MarkovChain:
             ('breakdown', 'deal_signed'): 0.1,
             ('breakdown', 'negotiation'): 0.4
         }
+
+        # Create a directed graph representation
         self.mc = nx.DiGraph()
         for (state_from, state_to), prob in self.transition_matrix.items():
             self.mc.add_edge(state_from, state_to, weight=prob)
 
-    def determine_next_state(self, current_state):
-        if current_state not in self.mc:
-            return None
-        neighbors = list(self.mc.successors(current_state))
-        probabilities = [self.mc[current_state][neighbor]['weight'] for neighbor in neighbors]
-        return np.random.choice(neighbors, p=probabilities) if neighbors else None
