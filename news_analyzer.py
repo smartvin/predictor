@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from urllib.parse import quote
 import openai
 import requests
 import json
@@ -25,22 +26,39 @@ def generate_search_keywords(question):
     keywords = response.choices[0].message.content.strip()
     return keywords.split(", ")
 
-def fetch_news_articles(keywords):
-    """Fetch news articles using NewsAPI."""
-    query = " OR ".join(keywords)
-    url = "https://newsapi.org/v2/everything"
-    params = {
-        "q": query,
-        "apiKey": NEWS_API_KEY,
-        "language": "en",
-        "sortBy": "relevancy"
-    }
-    response = requests.get(url, params=params)
-    print("received news:", response.json(), "and code=", response.status_code)
+def split_keywords(keywords, max_length=500):
+    """Split keyword queries to fit within NewsAPI's 500-character limit."""
+    queries = []
+    current_query = ""
+    for keyword in keywords:
+        encoded_keyword = quote(keyword)
+        if len(current_query) + len(encoded_keyword) + 4 <= max_length:  # +4 for ' OR '
+            current_query = f"{current_query} OR {encoded_keyword}" if current_query else encoded_keyword
+        else:
+            queries.append(current_query)
+            current_query = encoded_keyword
+    if current_query:
+        queries.append(current_query)
+    return queries
 
-    if response.status_code == 200:
-        return response.json().get("articles", [])
-    return []
+def fetch_news_articles(keywords):
+    """Fetch news articles using NewsAPI while respecting the query length limit."""
+    queries = split_keywords(keywords)
+    articles = []
+    url = "https://newsapi.org/v2/everything"
+    for query in queries:
+        params = {
+            "q": query,
+            "apiKey": NEWS_API_KEY,
+            "language": "en",
+            "sortBy": "relevancy"
+        }
+        response = requests.get(url, params=params)
+        print("received news:", response.json(), "and code=", response.status_code)
+
+        if response.status_code == 200:
+            articles.extend(response.json().get("articles", []))
+    return articles
 
 def analyze_article(article):
     """Use OpenAI to analyze how an article affects the probability of the event."""
