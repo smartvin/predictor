@@ -1,9 +1,10 @@
 import os
 from dotenv import load_dotenv
-from urllib.parse import quote
+import urllib.parse
 import openai
 import requests
 import json
+import re
 
 # API Keys (Replace with your actual keys)
 load_dotenv()
@@ -23,23 +24,35 @@ def generate_search_keywords(question):
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}]
     )
-    keywords = response.choices[0].message.content.strip()
-    return keywords.split(", ")
+    keywords_str = response.choices[0].message.content.strip()
+    # Try to extract keywords between quotes (e.g., "keyword")
+    keywords_list = re.findall(r'"([^"]+)"', keywords_str)
+    if not keywords_list:
+        # Fallback: split by newlines and remove numbering (like "1. ")
+        keywords_list = [re.sub(r'^\d+\.\s*', '', line).strip() 
+                         for line in keywords_str.splitlines() if line.strip()]
+    return keywords_list
 
 def split_keywords(keywords, max_length=500):
-    """Split keyword queries to fit within NewsAPI's 500-character limit."""
+    """Split keyword queries to fit within NewsAPI's 500-character limit.
+       Each keyword is enclosed in quotes for exact matching."""
     queries = []
     current_query = ""
     for keyword in keywords:
-        encoded_keyword = quote(keyword)
-        if len(current_query) + len(encoded_keyword) + 4 <= max_length:  # +4 for ' OR '
-            current_query = f"{current_query} OR {encoded_keyword}" if current_query else encoded_keyword
+        # Enclose the keyword in quotes for exact match:
+        keyword_phrase = f'"{keyword}"'
+        # If there is already content in current_query, add 4 extra characters for " OR "
+        extra = 4 if current_query else 0
+        if len(current_query) + len(keyword_phrase) + extra <= max_length:
+            current_query = f"{current_query} OR {keyword_phrase}" if current_query else keyword_phrase
         else:
             queries.append(current_query)
-            current_query = encoded_keyword
+            current_query = keyword_phrase
     if current_query:
+        print("generated query: ", current_query)
         queries.append(current_query)
     return queries
+
 
 def fetch_news_articles(keywords):
     """Fetch news articles using NewsAPI while respecting the query length limit."""
@@ -47,6 +60,7 @@ def fetch_news_articles(keywords):
     articles = []
     url = "https://newsapi.org/v2/everything"
     for query in queries:
+        print("passing query: ", query)
         params = {
             "q": query,
             "apiKey": NEWS_API_KEY,
@@ -54,14 +68,17 @@ def fetch_news_articles(keywords):
             "sortBy": "relevancy"
         }
         response = requests.get(url, params=params)
-        print("received news:", response.json(), "and code=", response.status_code)
+        #print("received news:", response.json(), "and code=", response.status_code)
 
         if response.status_code == 200:
             articles.extend(response.json().get("articles", []))
+        else:
+            print(f"NewsAPI Error: {response.json()}")
     return articles
 
 def analyze_article(article):
     """Use OpenAI to analyze how an article affects the probability of the event."""
+    print("title: ", article["title"], " url: ", article["url"])
     prompt = (
         f"Determine the effect on likelihood of this article on the question: '{topic_question}'. "
         "Express it with values between -1.0 and 1.0.\n\n"
@@ -80,6 +97,7 @@ def main():
     keywords = generate_search_keywords(topic_question)
     print("Keywords:", keywords)
     
+    keywords = ['Trump US Ukraine','Trump US Ukraine rare earth','Ukraine minerals deal']
     # Step 2: Fetch news articles
     articles = fetch_news_articles(keywords)
     print(f"Found {len(articles)} articles.")
