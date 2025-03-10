@@ -18,19 +18,19 @@ topic_question = "Will Trump sign a deal re. rare earth minerals with Ukraine be
 client = openai.Client(api_key=OPENAI_API_KEY)
 
 def generate_search_keywords(question):
-    """Use OpenAI to determine relevant search keywords for a topic."""
-    prompt = f"Generate a list of relevant search keywords for the topic: {question}"
+    """Use OpenAI to determine relevant search keywords for a topic.
+       Return a list of unique, individual keywords (one word each)."""
+    prompt = (
+        f"Generate a comma-separated list of unique, individual keywords (each a single word) "
+        f"relevant to the topic: {question}. Do not include multi-word phrases or extra commentary."
+    )
     response = client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}]
     )
     keywords_str = response.choices[0].message.content.strip()
-    # Try to extract keywords between quotes (e.g., "keyword")
-    keywords_list = re.findall(r'"([^"]+)"', keywords_str)
-    if not keywords_list:
-        # Fallback: split by newlines and remove numbering (like "1. ")
-        keywords_list = [re.sub(r'^\d+\.\s*', '', line).strip() 
-                         for line in keywords_str.splitlines() if line.strip()]
+    # Split by commas and remove extra whitespace:
+    keywords_list = [kw.strip() for kw in keywords_str.split(',') if kw.strip()]
     return keywords_list
 
 def split_keywords(keywords, max_length=500):
@@ -97,7 +97,7 @@ def main():
     keywords = generate_search_keywords(topic_question)
     print("Keywords:", keywords)
     
-    keywords = ['Trump US Ukraine','Trump US Ukraine rare earth','Ukraine minerals deal']
+    # keywords = ['Trump US Ukraine','Trump US Ukraine rare earth','Ukraine minerals deal']
     # Step 2: Fetch news articles
     articles = fetch_news_articles(keywords)
     print(f"Found {len(articles)} articles.")
