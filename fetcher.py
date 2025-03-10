@@ -1,11 +1,15 @@
+
 import requests
 
-class NewsFetcher:
-    def __init__(self, api_key):
-        self.api_url = "https://api.openai.com/v1/news"
-        self.headers = {"Authorization": f"Bearer {api_key}"}
+API_URL = "https://newsapi.org/v2/everything"
 
-    def fetch_articles(self, keywords, count=5):
-        params = {"query": " ".join(keywords), "count": count}
-        response = requests.get(self.api_url, headers=self.headers, params=params)
-        return response.json() if response.status_code == 200 else []
+def fetch_news_articles(keywords, api_key="YOUR_API_KEY"):
+    print("using API key: ", api_key)
+    query = " OR ".join(keywords)
+    params = {"q": query, "apiKey": api_key, "language": "en", "sortBy": "relevancy"}
+    response = requests.get(API_URL, params=params)
+    #print("received response:", response.status_code)
+    if response.status_code == 200:
+        articles = response.json().get("articles", [])
+        return [{"text": article["title"] + " " + article["description"], "relevance": 0.5} for article in articles if article["title"] and article["description"]]
+    return []

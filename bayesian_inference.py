@@ -49,6 +49,7 @@ class BayesianInferenceModel:
     def update_markov_chain(self, transition_matrix):
         """Update the Markov Chain transition probabilities based on Bayesian updates."""
         for (state_from, state_to) in transition_matrix.keys():
+            print("transitioning from:", state_from," to ", state_to)
             if state_to in self.probabilities:
                 transition_matrix[(state_from, state_to)] = self.probabilities[state_to]
         
